@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+
+# Options
+PORT=65432
+ADDRESS="localhost"
+
+# Display usage for this script
+usage() {
+  echo "Insecure file transfer via issh
+Usage: $0 [-h] [-p PORT] [-C ADDRESS] [-l PATH] [-r RECEIVE]
+  -h            Show this screen
+  -p PORT       Port to listen/connect on (default: $PORT)
+  -C ADDRESS    Connect to an open session (default: $ADDRESS)
+  -l PATH       Local file path
+  -r PATH       Remote file path
+
+Specify -r only to pull a file
+Specify -l and -r to push a file"
+}
+
+# Make sure we have everything we need to run
+assert_dependencies() {
+  for dep in toybox issh
+  do
+    if ! command -v "$dep" &>/dev/null
+    then
+      echo "Missing $dep binary"
+      exit 1
+    fi
+  done
+}
+
+# Check if port is out of range
+is_port_within_range() {
+  [[ "$1" -gt 1 && "$1" -lt 65535 ]]
+}
+
+# Bail if port is out of range
+assert_port_within_range() {
+  if ! is_port_within_range "$1"
+  then
+    echo "Port is out of range (1-65535): $1"
+    exit 1
+  fi
+}
+
+# Check if port is in use currently
+is_port_available() {
+  ! toybox netstat -lpn 2>/dev/null | toybox grep -w ".*:$1" &>/dev/null
+}
+
+# Bail if port is taken
+assert_port_available() {
+  if ! is_port_available "$1"
+  then
+    echo "Port is in use: $1"
+    exit 1
+  fi
+}
+
+# Parse arguments passed to us and set relevant variables
+parse_options() {
+  while getopts ":hp:C:l:r:" opt
+  do
+    case "$opt" in
+    h)
+      usage
+      exit 0
+      ;;
+    p)
+      PORT="$OPTARG"
+      assert_port_within_range "$PORT"
+      ;;
+    C)
+      ADDRESS="$OPTARG"
+      ;;
+    l)
+      LOCAL_PATH="$OPTARG"
+      ;;
+    r)
+      REMOTE_PATH="$OPTARG"
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+    esac
+  done
+
+  # Detect invalid configuration
+  if [[ -z "$LOCAL_PATH" ]] || [[ -z "$REMOTE_PATH" ]]
+  then
+    usage
+    exit 1
+  fi
+
+  pull
+}
+
+# Execute a remote command
+remote() {
+  echo "$*" | toybox nc "$ADDRESS" "$PORT"
+}
+
+# Fetch something from the server
+pull() {
+  if [[ "$(remote "[[ -f $REMOTE_PATH ]] && echo true")" != true ]]
+  then
+    echo "Invalid remote file path"
+    exit 1
+  fi
+
+  remote "cat $REMOTE_PATH" > "$LOCAL_PATH"
+}
+
+# Push something to the server
+push() {
+  if [[ ! -e "$LOCAL_PATH" ]]
+  then
+    echo "Invalid local file path"
+    exit 1
+  fi
+}
+
+parse_options "$@"
+assert_dependencies

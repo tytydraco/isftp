@@ -1,21 +1,34 @@
 #!/usr/bin/env bash
 
-# Options
+# Constants
+MODE_SERVER="server"
+MODE_CLIENT="client"
+
+# Global options
+MODE="$MODE_SERVER"
 PORT=65433
+
+# Server options
+LOCAL=false
+DAEMON=false
+
+# Client options
 ADDRESS="localhost"
 
 # Display usage for this script
 usage() {
   echo "Insecure file transfer via issh
-Usage: $0 [-h] [-p PORT] [-C ADDRESS] [-l PATH] [-r RECEIVE]
+Usage: $0 [-h] [-p PORT] [-l] [-d] [-C ADDRESS] [-L] [PATH]
   -h            Show this screen
   -p PORT       Port to listen/connect on (default: $PORT)
-  -C ADDRESS    Connect to an open session (default: $ADDRESS)
-  -l PATH       Local file path
-  -r PATH       Remote file path
 
-Specify -r only to pull a file
-Specify -l and -r to push a file"
+Server options:
+  -l            Only allow localhost connections
+  -d            Fork to background; run as daemon
+
+Client options:
+  -C ADDRESS    Connect to an open session (default: $ADDRESS)
+  -L		        Connect to an open localhost session"
 }
 
 # Make sure we have everything we need to run
@@ -60,7 +73,7 @@ assert_port_available() {
 
 # Parse arguments passed to us and set relevant variables
 parse_options() {
-  while getopts ":hp:C:l:r:" opt
+  while getopts ":hp:ldC:Lg:r:" opt
   do
     case "$opt" in
     h)
@@ -71,14 +84,19 @@ parse_options() {
       PORT="$OPTARG"
       assert_port_within_range "$PORT"
       ;;
+    l)
+      LOCAL=true
+      ;;
+    d)
+      DAEMON=true
+      ;;
     C)
+      MODE="$MODE_CLIENT"
       ADDRESS="$OPTARG"
       ;;
-    l)
-      LOCAL_PATH="$OPTARG"
-      ;;
-    r)
-      REMOTE_PATH="$OPTARG"
+    L)
+      MODE="$MODE_CLIENT"
+      ADDRESS="localhost"
       ;;
     *)
       usage
@@ -86,41 +104,48 @@ parse_options() {
       ;;
     esac
   done
-
-  # Detect invalid configuration
-  if [[ -z "$LOCAL_PATH" ]] || [[ -z "$REMOTE_PATH" ]]
-  then
-    usage
-    exit 1
-  fi
-
-  pull
+  shift $((OPTIND - 1))
+  
+  FILE_PATH="$1"
 }
 
-# Execute a remote command
-remote() {
-  echo "$*" | toybox nc "$ADDRESS" "$PORT"
-}
+# Host a server
+server() {
+  assert_port_available "$PORT"
 
-# Fetch something from the server
-pull() {
-  if [[ "$(remote "[[ -f $REMOTE_PATH ]] && echo true")" != true ]]
+  # Handle arguments that should be given to netcat
+  nc_args=(
+    "-L"
+    "-p" "$PORT"
+  )
+  [[ "$LOCAL" == true ]] && nc_args+=("-s" "localhost")
+
+  if [[ "$DAEMON" == true ]]
   then
-    echo "Invalid remote file path"
-    exit 1
+    toybox setsid toybox nc "${nc_args[@]}" sh -c "toybox tar x" &
+  else
+    toybox nc "${nc_args[@]}" sh -c "toybox tar x"
   fi
-
-  remote "cat $REMOTE_PATH" > "$LOCAL_PATH"
 }
 
 # Push something to the server
-push() {
-  if [[ ! -e "$LOCAL_PATH" ]]
+client() {
+  if [[ ! -e "$FILE_PATH" ]]
   then
     echo "Invalid local file path"
     exit 1
   fi
+
+  tar c "$FILE_PATH" 2>/dev/null | toybox nc "$ADDRESS" "$PORT"
 }
 
 parse_options "$@"
 assert_dependencies
+
+if [[ "$MODE" == "$MODE_SERVER" ]]
+then
+  server
+elif [[ "$MODE" == "$MODE_CLIENT" ]]
+then
+  client
+fi

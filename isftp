@@ -28,7 +28,7 @@ Server options:
 
 Client options:
   -C ADDRESS    Connect to an open session (default: $ADDRESS)
-  -L		        Connect to an open localhost session"
+  -L            Connect to an open localhost session"
 }
 
 # Make sure we have everything we need to run

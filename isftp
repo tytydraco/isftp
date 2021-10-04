@@ -17,7 +17,7 @@ ADDRESS="localhost"
 
 # Display usage for this script
 usage() {
-  echo "Insecure file transfer via issh
+  echo "Insecure file transfer via netcat
 Usage: $0 [-h] [-p PORT] [-d] [-l] [-C ADDRESS] [-L] [PATH]
   -h            Show this screen
   -p PORT       Port to listen/connect on (default: $PORT)
@@ -33,14 +33,11 @@ Client options:
 
 # Make sure we have everything we need to run
 assert_dependencies() {
-  for dep in toybox issh
-  do
-    if ! command -v "$dep" &>/dev/null
-    then
-      echo "Missing $dep binary"
-      exit 1
-    fi
-  done
+  if ! command -v toybox &>/dev/null
+  then
+    echo "Toybox binary inaccessible"
+    exit 1
+  fi
 }
 
 # Check if port is out of range

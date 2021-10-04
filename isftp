@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Options
-PORT=65432
+PORT=65433
 ADDRESS="localhost"
 
 # Display usage for this script

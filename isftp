@@ -139,7 +139,7 @@ client() {
     exit 1
   fi
 
-  tar c "$FILE_PATH" 2>/dev/null | toybox nc "$ADDRESS" "$PORT"
+  toybox tar c "$FILE_PATH" 2>/dev/null | toybox nc "$ADDRESS" "$PORT"
 }
 
 parse_options "$@"

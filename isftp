@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+
 # Constants
 MODE_SERVER="server"
 MODE_CLIENT="client"
@@ -117,6 +118,15 @@ server() {
   )
   [[ "$LOCAL" == true ]] && nc_args+=("-s" "localhost")
 
+  if [[ -d "$FILE_PATH" ]]
+  then
+    cd "$FILE_PATH"
+  elif ! [[ -z "$FILE_PATH" ]]
+  then
+    echo "File path is not a directory."
+    exit 1
+  fi
+  
   if [[ "$DAEMON" == true ]]
   then
     toybox setsid toybox nc "${nc_args[@]}" sh -c "toybox tar x" &
